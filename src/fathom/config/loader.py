@@ -52,20 +52,20 @@ class ConfigLoader:
         return self._config["research"]["max_sub_questions"]
 
     @property
-    def llm_model(self):
-        return self._config["llm"]["model_name"]
+    def report_model(self):
+        return self._config["llm"]["report_model_name"]
 
     @property
     def summary_model(self):
-        return self._config["llm"].get("summary_model_name", self.llm_model)
+        return self._config["llm"].get("summary_model_name", self.report_model)
 
     @property
     def clarify_model(self):
-        return self._config["llm"].get("clarify_model_name", self.llm_model)
+        return self._config["llm"].get("clarify_model_name", self.report_model)
 
     @property
     def research_model(self):
-        return self._config["llm"].get("research_model_name", self.llm_model)
+        return self._config["llm"].get("research_model_name", self.report_model)
 
 
 # --- 使用示例 ---
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     # 打印测试
     print(f"当前项目: {settings.config['project']['name']}")
-    print(f"使用模型: {settings.llm_model}")
+    print(f"使用模型: {settings.report_model}")
     print(f"研究深度: {settings.max_depth}")
 
     # 在 LangGraph 的 Node 中使用：

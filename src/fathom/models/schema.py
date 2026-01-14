@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Optional
+from typing import Annotated, NotRequired, Optional, TypedDict
 
 from langchain_core.messages import MessageLikeRepresentation
 from langgraph.graph import MessagesState
@@ -68,12 +68,42 @@ def override_reducer(current_value, new_value):
         return operator.add(current_value, new_value)
 
 
+class AgentInputState(MessagesState):
+    """InputState is only 'messages'."""
+
+
 class AgentState(MessagesState):
     """Main agent state containing messages and research data."""
 
     supervisor_messages: Annotated[list[MessageLikeRepresentation], override_reducer]
-    research_iterations: int
     research_brief: Optional[str]
     raw_notes: Annotated[list[str], override_reducer]
     notes: Annotated[list[str], override_reducer]
     final_report: str
+
+
+class SupervisorState(TypedDict):
+    """State for the supervisor that manages research tasks."""
+
+    supervisor_messages: Annotated[list[MessageLikeRepresentation], override_reducer]
+    research_brief: str
+    notes: Annotated[list[str], override_reducer]
+    research_iterations: int
+    raw_notes: Annotated[list[str], override_reducer]
+
+
+class ResearcherState(TypedDict):
+    """State for individual researchers conducting research."""
+
+    researcher_messages: Annotated[list[MessageLikeRepresentation], operator.add]
+    research_topic: str
+    tool_call_iterations: NotRequired[int]
+    compressed_research: NotRequired[str]
+    raw_notes: NotRequired[Annotated[list[str], override_reducer]]
+
+
+class ResearcherOutputState(BaseModel):
+    """Output state from individual researchers."""
+
+    compressed_research: str
+    raw_notes: Annotated[list[str], override_reducer] = []

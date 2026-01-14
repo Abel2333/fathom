@@ -13,7 +13,7 @@ debug_mode = true  # 是否打印详细的 Graph 状态转换日志
 # ------------------------------------------
 [llm]
 provider = "deepseek"  # 选项: openai, anthropic, ollama
-model_name = "deepseek-reasoner"  # 建议使用长窗口模型
+report_model_name = "deepseek-reasoner"  # 建议使用长窗口模型
 summary_model_name = "deepseek-chat"  # 专用于摘要/压缩的模型
 clarify_model_name = "deepseek-chat"
 research_model_name = "deepseek-reasoner"
@@ -40,6 +40,7 @@ max_sub_questions = 3  # 广度：每一轮针对一个问题，最多生成多�
 total_query_limit = 20  # 安全阀：整个运行过程中允许的最大搜索次数，防止 API 费用爆炸
 # LangGraph 特有配置
 recursion_limit = 50  # Graph 的最大递归步数，防止死循环
+max_tool_calls = 40
 concurrency = 4  # 并发数：同时抓取或搜索的线程数
 
 # ------------------------------------------
