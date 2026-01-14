@@ -5,6 +5,7 @@ specific topics using available tools like search and strategic thinking.
 """
 
 import asyncio
+import hashlib
 from typing import Literal, cast
 
 from langchain_core.messages import (
@@ -31,6 +32,14 @@ settings = ConfigLoader()
 logger = get_logger(__name__)
 
 
+def get_researcher_id(topic: str) -> str:
+    """Generate a short unique ID for a researcher based on the topic."""
+    # Create a hash of the topic and take first 6 characters
+    topic_hash = hashlib.md5(topic.encode()).hexdigest()[:6]
+    return f"R-{topic_hash}"
+
+
+
 async def researcher(state: ResearcherState) -> Command[Literal["researcher_tools"]]:
     """
     Individual researcher that conducts focused research on specific topics.
@@ -47,17 +56,24 @@ async def researcher(state: ResearcherState) -> Command[Literal["researcher_tool
     """
     researcher_messages = state.get("researcher_messages", [])
     topic = state.get("research_topic", "unknown topic")
+
+    # Generate unique researcher ID based on topic
+    researcher_id = get_researcher_id(topic)
+
+    # Extract topic summary (first 80 chars)
+    topic_summary = topic[:80] + "..." if len(topic) > 80 else topic
+
     logger.info("=" * 60)
-    logger.info("RESEARCHER LOOP: Starting")
+    logger.info(f"RESEARCHER [{researcher_id}] LOOP: Starting")
     logger.info("=" * 60)
-    logger.info(f"Topic: {topic}")
-    logger.debug(f"Current researcher messages: {len(researcher_messages)}")
+    logger.info(f"[{researcher_id}] Topic: {topic_summary}")
+    logger.debug(f"[{researcher_id}] Current researcher messages: {len(researcher_messages)}")
 
     # Get all available research tools (search, think_tool)
     tools = get_all_tools()
     if len(tools) == 0:
         logger.error(
-            "No tools found to conduct research: Please configure either your "
+            f"[{researcher_id}] No tools found to conduct research: Please configure either your "
             "search API or add custom tools."
         )
         raise ValueError(
@@ -71,11 +87,11 @@ async def researcher(state: ResearcherState) -> Command[Literal["researcher_tool
     # Configure model with tools
     research_model = build_model(settings.research_model).bind_tools(tools)
     logger.debug(
-        f"Using model: {settings.research_model} with {len(tools)} bound tools"
+        f"[{researcher_id}] Using model: {settings.research_model} with {len(tools)} bound tools"
     )
 
     messages = [SystemMessage(content=researcher_prompt)] + researcher_messages
-    logger.debug("Invoking researcher model with system prompt and messages")
+    logger.debug(f"[{researcher_id}] Invoking researcher model with system prompt and messages")
     response = await research_model.ainvoke(messages)
 
     # Update state and proceed to tool execution
@@ -118,25 +134,27 @@ async def researcher_tools(
     researcher_messages = state.get("researcher_messages", [])
     most_recent_message = cast(AIMessage, researcher_messages[-1])
     iteration = state.get("tool_call_iterations", 0)
-    logger.info(f"RESEARCHER TOOLS: iteration {iteration + 1}")
+    topic = state.get("research_topic", "unknown topic")
+
+    # Generate unique researcher ID based on topic
+    researcher_id = get_researcher_id(topic)
+
+    logger.info(f"[{researcher_id}] RESEARCHER TOOLS: iteration {iteration + 1}")
 
     # Early exit if no tool calls were made (including native web search)
     has_tool_calls = bool(most_recent_message.tool_calls)
 
     if not has_tool_calls:
-        logger.info("No tool calls found; proceeding to compression")
+        logger.info(f"[{researcher_id}] No tool calls found; proceeding to compression")
         return Command(goto="compress_research")
 
     tools = get_all_tools()
-    tools_by_name = {
-        tool.name if hasattr(tool, "name") else tool.get("name", "web_search"): tool
-        for tool in tools
-    }
-    logger.debug(f"Available tools for execution: {list(tools_by_name.keys())}")
+    tools_by_name = {tool.name: tool for tool in tools}
+    logger.debug(f"[{researcher_id}] Available tools for execution: {list(tools_by_name.keys())}")
 
     # Execute all tool calls in parallel
     tool_calls = most_recent_message.tool_calls
-    logger.info(f"Executing {len(tool_calls)} tool call(s)")
+    logger.info(f"[{researcher_id}] Executing {len(tool_calls)} tool call(s)")
     tool_execution_tasks = [
         execute_tool_safely(tools_by_name[tool_call["name"]], tool_call["args"])
         for tool_call in tool_calls
@@ -164,17 +182,17 @@ async def researcher_tools(
     if exceeded_iterations or research_complete_called:
         if exceeded_iterations:
             logger.warning(
-                "Max tool call iterations reached; moving to compression stage"
+                f"[{researcher_id}] Max tool call iterations reached; moving to compression stage"
             )
         if research_complete_called:
-            logger.info("ResearchComplete tool detected; moving to compression")
+            logger.info(f"[{researcher_id}] ResearchComplete tool detected; moving to compression")
         # End research and proceed to compression
         return Command(
             goto="compress_research", update={"researcher_messages": tool_outputs}
         )
 
     # Continue research loop with tool results
-    logger.info("Continuing research loop with tool outputs")
+    logger.info(f"[{researcher_id}] Continuing research loop with tool outputs")
     return Command(goto="researcher", update={"researcher_messages": tool_outputs})
 
 
@@ -193,8 +211,13 @@ async def compress_research(state: ResearcherState):
         Dictionary containing compressed research summary and raw notes
     """
     synthesis_model = build_model(settings.summary_model)
-    logger.info("COMPRESS RESEARCH: starting synthesis")
-    logger.debug(f"Using summary model: {settings.summary_model}")
+    topic = state.get("research_topic", "unknown topic")
+
+    # Generate unique researcher ID based on topic
+    researcher_id = get_researcher_id(topic)
+
+    logger.info(f"[{researcher_id}] COMPRESS RESEARCH: starting synthesis")
+    logger.debug(f"[{researcher_id}] Using summary model: {settings.summary_model}")
 
     researcher_messages = state.get("researcher_messages", [])
     researcher_messages.append(
@@ -206,7 +229,7 @@ async def compress_research(state: ResearcherState):
     max_attempts = 3
 
     while synthesis_attempts < max_attempts:
-        logger.info(f"Compression attempt {synthesis_attempts + 1} of {max_attempts}")
+        logger.info(f"[{researcher_id}] Compression attempt {synthesis_attempts + 1} of {max_attempts}")
         try:
             # Create system prompt focused on compression task
             compression_prompt = compress_research_simple_human_message.format(
@@ -214,8 +237,19 @@ async def compress_research(state: ResearcherState):
             )
             messages = [SystemMessage(content=compression_prompt)] + researcher_messages
 
-            # Execute compression
-            response = await synthesis_model.ainvoke(messages)
+            # Execute compression with streaming
+            logger.info(f"[{researcher_id}] Starting compression with streaming output...")
+            accumulated_content = ""
+
+            async for chunk in synthesis_model.astream(messages):
+                if hasattr(chunk, 'content') and chunk.content:
+                    content_chunk = str(chunk.content)
+                    accumulated_content += content_chunk
+                    # Print streaming output to console for real-time feedback
+                    print(content_chunk, end="", flush=True)
+
+            # Print newline after streaming completes
+            print()
 
             # Extract raw notes from all tool and AI Messages
             raw_notes_content = "\n".join(
@@ -228,13 +262,13 @@ async def compress_research(state: ResearcherState):
             )
 
             # Return successful compression result
-            logger.info("Compression succeeded")
+            logger.info(f"[{researcher_id}] Compression succeeded")
             return {
-                "compressed_research": str(response.content),
+                "compressed_research": accumulated_content,
                 "raw_notes": [raw_notes_content],
             }
         except Exception:
-            logger.exception("Compression failed; retrying with truncated context")
+            logger.exception(f"[{researcher_id}] Compression failed; retrying with truncated context")
             synthesis_attempts += 1
 
             # Remove older messages
@@ -250,7 +284,7 @@ async def compress_research(state: ResearcherState):
         ]
     )
 
-    logger.error("Compression failed after maximum retries; returning error payload")
+    logger.error(f"[{researcher_id}] Compression failed after maximum retries; returning error payload")
     return {
         "compressed_research": "Error synthesizing research report: Maximum retries exceeded",
         "raw_notes": [raw_notes_content],

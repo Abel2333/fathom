@@ -8,7 +8,7 @@ from fathom.config.logging import get_logger
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
-from langchain_core.tools import InjectedToolArg
+from langchain_core.tools import InjectedToolArg, tool
 from tavily import AsyncTavilyClient
 
 from fathom.config.loader import ConfigLoader
@@ -39,6 +39,7 @@ def build_model(model_name: str) -> BaseChatModel:
     )
 
 
+@tool
 async def tavily_search(
     queries: list[str],
     max_results: Annotated[int, InjectedToolArg] = settings.config["search"][
@@ -58,7 +59,7 @@ async def tavily_search(
         queries: List of search queries to execute
         max_results: Maximum number of results to return per query
         topic: Topic filter for search results (general, news, or finance)
-        config: Runtime configuration for API keys and model settings
+        max_char_to_include: Maximum characters to include from each result for summarization
 
     Returns:
         Structured dict containing queries and summarized results.
@@ -120,7 +121,32 @@ async def tavily_search(
             }
         )
 
-    return {"queries": queries, "results": summarized_results}
+    # Format results as markdown with clickable links for better citation
+    formatted_results = []
+    for result in summarized_results:
+        title = result.get("title", "Untitled")
+        url = result.get("url", "")
+        query = result.get("query", "")
+        summary = result.get("summary", "")
+
+        # Format as markdown with source link
+        formatted_result = f"""
+### [{title}]({url})
+**Query**: {query}
+**Source**: {url}
+
+{summary}
+"""
+        formatted_results.append(formatted_result.strip())
+
+    # Return both structured data and formatted markdown
+    formatted_output = "\n\n---\n\n".join(formatted_results)
+
+    return {
+        "queries": queries,
+        "results": summarized_results,
+        "formatted_output": formatted_output
+    }
 
 
 async def tavily_search_async(

@@ -1,14 +1,13 @@
 """Miscellaneous utility functions and tools."""
 
 from datetime import datetime
-from typing import Callable
 
 from langchain_core.messages import (
     AIMessage,
     MessageLikeRepresentation,
     filter_messages,
 )
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 
 
 def get_today_str() -> str:
@@ -81,10 +80,10 @@ def remove_up_to_last_ai_message(
 
 
 # Global registry for custom tools
-_custom_tools_registry: list[Callable] = []
+_custom_tools_registry: list[BaseTool] = []
 
 
-def register_tool(tool_func: Callable) -> Callable:
+def register_tool(tool_func: BaseTool) -> BaseTool:
     """Register a custom tool to be included in the researcher's toolset.
 
     This decorator allows you to register custom tools that will be automatically
@@ -110,7 +109,7 @@ def register_tool(tool_func: Callable) -> Callable:
     return tool_func
 
 
-def get_all_tools() -> list[Callable]:
+def get_all_tools() -> list[BaseTool]:
     """Get all available tools for the researcher.
 
     This function collects all built-in tools and any custom tools that have been
