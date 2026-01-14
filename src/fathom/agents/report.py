@@ -4,6 +4,9 @@ This module handles generating the comprehensive final research report
 from all collected research findings.
 """
 
+from datetime import datetime
+from pathlib import Path
+
 from langchain_core.messages import AIMessage, HumanMessage, get_buffer_string
 
 from fathom.config.loader import ConfigLoader
@@ -15,6 +18,74 @@ from fathom.tools.utils import get_today_str
 
 settings = ConfigLoader()
 logger = get_logger(__name__)
+
+
+def save_report_to_file(content: str, research_brief: str = "") -> str:
+    """
+    Save the final report to a markdown file.
+
+    Args:
+        content: The report content to save
+        research_brief: Brief description of the research topic for filename
+
+    Returns:
+        Path to the saved file
+    """
+    # Get output directory from config
+    output_dir = settings.config.get("output", {}).get("dir", "./reports")
+    output_path = Path(output_dir)
+
+    # Create directory if it doesn't exist
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Try to extract title from report content (first heading)
+    title_from_content = ""
+    if content:
+        lines = content.split("\n")
+        for line in lines[:10]:  # Check first 10 lines
+            line = line.strip()
+            if line.startswith("# "):
+                # Found a markdown H1 heading
+                title_from_content = line.lstrip("# ").strip()
+                break
+
+    # Create a safe filename
+    if title_from_content:
+        # Use the extracted title from report
+        safe_title = "".join(
+            c
+            for c in title_from_content[:50]
+            if c.isalnum() or c in (" ", "-", "_", "：", ":")
+        )
+        safe_title = (
+            safe_title.strip().replace(" ", "_").replace("：", "_").replace(":", "_")
+        )
+        filename = f"report_{timestamp}_{safe_title}.md"
+    elif research_brief:
+        # Fallback to research brief (first 30 chars)
+        safe_brief = "".join(
+            c for c in research_brief[:30] if c.isalnum() or c in (" ", "-", "_")
+        )
+        safe_brief = safe_brief.strip().replace(" ", "_")
+        filename = f"report_{timestamp}_{safe_brief}.md"
+    else:
+        # Last resort: just timestamp
+        filename = f"report_{timestamp}.md"
+
+    file_path = output_path / filename
+
+    # Write content to file
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        logger.info(f"Report saved to: {file_path}")
+        return str(file_path)
+    except Exception as e:
+        logger.error(f"Failed to save report to file: {e}")
+        return ""
 
 
 async def final_report_generation(state: AgentState):
@@ -106,6 +177,15 @@ async def final_report_generation(state: AgentState):
                 final_report = await writer_model.ainvoke(prompt_messages)
 
             logger.info("Final report generation succeeded")
+
+            # Save report to markdown file
+            research_brief = state.get("research_brief", "") or ""
+            # Ensure content is a string (handle both str and list types)
+            report_content = str(final_report.content) if final_report.content else ""
+            saved_path = save_report_to_file(report_content, research_brief)
+            if saved_path:
+                print(f"\n✓ Report saved to: {saved_path}\n")
+
             return {
                 "final_report": final_report.content,
                 "messages": [final_report],
