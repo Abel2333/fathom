@@ -13,10 +13,10 @@ debug_mode = true  # 是否打印详细的 Graph 状态转换日志
 # ------------------------------------------
 [llm]
 provider = "deepseek"  # 选项: openai, anthropic, ollama
-report_model_name = "kimi-k2-thinking"  # 建议使用长窗口模型
+report_model_name = "deepseek-reasoner"  # 建议使用长窗口模型
 summary_model_name = "deepseek-chat"  # 专用于摘要/压缩的模型
 clarify_model_name = "deepseek-chat"
-research_model_name = "kimi-k2-thinking"
+research_model_name = "deepseek-chat"
 temperature = 0.0  # 研究任务建议设为 0 以保证严谨性
 timeout = 60  # 请求超时时间(秒)
 # api_key 建议从环境变量读取，不要写在文件里
@@ -35,7 +35,7 @@ exclude_domains = ["youtube.com", "bilibili.com"]  # 排除视频网站，专注
 # ------------------------------------------
 [research]
 allow_clarification = true  # 是否允许澄清用户问题
-max_depth = 6  # 研究深度：迭代多少轮？(Query -> Sub-query -> Sub-sub-query)
+max_depth = 8  # 研究深度：迭代多少轮？(Query -> Sub-query -> Sub-sub-query)
 max_sub_questions = 3  # 广度：每一轮针对一个问题，最多生成多少个子问题？
 total_query_limit = 20  # 安全阀：整个运行过程中允许的最大搜索次数，防止 API 费用爆炸
 # LangGraph 特有配置

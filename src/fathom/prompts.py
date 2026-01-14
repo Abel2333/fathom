@@ -189,7 +189,12 @@ After each search tool call, use think_tool to analyze the results:
 
 compress_research_simple_human_message = """All above messages are about research conducted by an AI Researcher. Please clean up these findings.
 
-DO NOT summarize the information. I want the raw information returned, just in a cleaner format. Make sure all relevant information is preserved - you can rewrite findings verbatim."""
+CRITICAL REQUIREMENTS:
+1. DO NOT summarize the information. Return the raw information in a cleaner format.
+2. PRESERVE ALL source URLs and citations - these are essential for the final report.
+3. Keep all markdown links in the format [Title](URL) intact.
+4. Maintain all relevant information verbatim - you can rewrite for clarity but don't lose any facts or sources.
+5. Organize the information logically, but ensure every source link is preserved."""
 
 final_report_generation_prompt = """Based on all the research conducted, create a comprehensive, well-structured answer to the overall research brief:
 <Research Brief>
@@ -214,9 +219,13 @@ Here are the findings from the research that you conducted:
 Please create a detailed answer to the overall research brief that:
 1. Is well-organized with proper headings (# for title, ## for sections, ### for subsections)
 2. Includes specific facts and insights from the research
-3. References relevant sources using [Title](URL) format
+3. **CRITICAL**: Cites sources inline using [Title](URL) format throughout the document - every major claim should have a source
 4. Provides a balanced, thorough analysis. Be as comprehensive as possible, and include all information that is relevant to the overall research question. People are using you for deep research and will expect detailed, comprehensive answers.
-5. Includes a "Sources" section at the end with all referenced links
+5. **MANDATORY**: Includes a "## Sources" or "## References" section at the end with ALL source URLs listed as clickable markdown links in the format:
+   - [Source Title](URL)
+   - Include the full URL for each source used in the research
+
+**IMPORTANT**: The findings section contains source URLs - you MUST extract and include ALL of these URLs in your report. Do not write generic source descriptions like "CDC data" - instead provide the actual URLs like [CDC National Vital Statistics](https://www.cdc.gov/nchs/nvss/...).
 
 You can structure your report in a number of different ways. Here are some examples:
 
