@@ -64,6 +64,7 @@ async def tavily_search(
         Structured dict containing queries and summarized results.
     """
 
+    logger.info(f"Tavily search invoked with {len(queries)} querie(s)")
     search_results = await tavily_search_async(
         queries,
         max_results=max_results,
@@ -79,8 +80,17 @@ async def tavily_search(
             if url not in unique_results:
                 unique_results[url] = {**result, "query": response["query"]}
 
+    logger.info(
+        f"Collected {sum(len(r['results']) for r in search_results)} raw result(s) "
+        f"across {len(search_results)} query response(s); {len(unique_results)} after dedup"
+    )
+
     # Build model from configuration.
     summarization_model = build_model(settings.summary_model)
+    logger.debug(
+        f"Summarizing results with model={settings.summary_model} "
+        f"max_chars={max_char_to_include}"
+    )
 
     async def noop():
         """No-op function for results without raw content."""
@@ -130,6 +140,9 @@ async def tavily_search_async(
     Returns:
         List of search result dictionaries from Tavily API
     """
+    logger.info(
+        f"Dispatching Tavily queries ({len(search_queries)}): topic={topic}, max_results={max_results}"
+    )
     # Initialize the Tavily client with API key from config
     tavily_client = AsyncTavilyClient(api_key=settings.config["search"]["api_key"])
 
@@ -146,6 +159,7 @@ async def tavily_search_async(
 
     # Execute all search queries in parallel and return results
     search_results = await asyncio.gather(*search_tasks)
+    logger.debug("Tavily queries completed")
     return search_results
 
 
@@ -171,6 +185,7 @@ async def summarize_content(
     from fathom.tools.utils import get_today_str
 
     if not content or len(content) < 500:
+        logger.debug("Content length below threshold; returning original content")
         return {"summary": content, "key_excerpts": []}
 
     base_instruction = prompts.summarize_content_prompt
