@@ -1,11 +1,13 @@
 import os
+
+# 定义配置文件的路径
+import pathlib
 import tomllib
 from typing import Any, Dict
 
 from dotenv import load_dotenv
 
-# 定义配置文件的路径
-CONFIG_PATH = "config.toml"
+CONFIG_PATH = pathlib.Path(__file__).parent / "config.toml"
 
 load_dotenv()
 
@@ -56,6 +58,14 @@ class ConfigLoader:
     @property
     def summary_model(self):
         return self._config["llm"].get("summary_model_name", self.llm_model)
+
+    @property
+    def clarify_model(self):
+        return self._config["llm"].get("clarify_model_name", self.llm_model)
+
+    @property
+    def research_model(self):
+        return self._config["llm"].get("research_model_name", self.llm_model)
 
 
 # --- 使用示例 ---

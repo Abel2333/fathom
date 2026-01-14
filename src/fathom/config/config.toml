@@ -15,6 +15,8 @@ debug_mode = true  # 是否打印详细的 Graph 状态转换日志
 provider = "deepseek"  # 选项: openai, anthropic, ollama
 model_name = "deepseek-reasoner"  # 建议使用长窗口模型
 summary_model_name = "deepseek-chat"  # 专用于摘要/压缩的模型
+clarify_model_name = "deepseek-chat"
+research_model_name = "deepseek-reasoner"
 temperature = 0.0  # 研究任务建议设为 0 以保证严谨性
 timeout = 60  # 请求超时时间(秒)
 # api_key 建议从环境变量读取，不要写在文件里
@@ -32,7 +34,8 @@ exclude_domains = ["youtube.com", "bilibili.com"]  # 排除视频网站，专注
 # 这些参数决定了 LangGraph 的结构和运行逻辑
 # ------------------------------------------
 [research]
-max_depth = 3  # 研究深度：迭代多少轮？(Query -> Sub-query -> Sub-sub-query)
+allow_clarification = true  # 是否允许澄清用户问题
+max_depth = 6  # 研究深度：迭代多少轮？(Query -> Sub-query -> Sub-sub-query)
 max_sub_questions = 3  # 广度：每一轮针对一个问题，最多生成多少个子问题？
 total_query_limit = 20  # 安全阀：整个运行过程中允许的最大搜索次数，防止 API 费用爆炸
 # LangGraph 特有配置
@@ -58,3 +61,12 @@ format = "markdown"  # 选项: markdown, pdf
 language = "Chinese"  # 强制输出语言
 tone = "professional"  # 选项: professional(专业), academic(学术), easy-to-read(通俗)
 include_citations = true  # 是否包含引用来源链接
+
+# ------------------------------------------
+# 6. Logging (日志配置)
+# ------------------------------------------
+[logging]
+level = "INFO"  # 选项: DEBUG, INFO, WARNING, ERROR, CRITICAL
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+log_to_file = true  # 是否记录到文件
+log_file = "logs/fathom.log"  # 日志文件路径

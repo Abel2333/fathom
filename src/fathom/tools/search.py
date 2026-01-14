@@ -1,22 +1,20 @@
-"""Utility functions and helpers for the Deep Research agent."""
+"""Search and summarization tools for the Deep Research agent."""
 
 import asyncio
-import logging
-from datetime import datetime
 from typing import Annotated, Dict, Literal, Optional, cast
+
+from fathom.config.logging import get_logger
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
-from langchain_core.tools import (
-    InjectedToolArg,
-)
-from langchain_deepseek.chat_models import ChatDeepSeek
-from pydantic import BaseModel, Field
+from langchain_core.tools import InjectedToolArg
 from tavily import AsyncTavilyClient
 
-import prompts
-from config import ConfigLoader
+from fathom.config.loader import ConfigLoader
+from fathom.models.extended import ChatDeepSeekReasoningAware
+from fathom.models.schema import Summary
+from fathom import prompts
 
 TAVILY_SEARCH_DESCRIPTION = (
     "A search engine optimized for comprehensive, accurate, and trusted results. "
@@ -26,22 +24,14 @@ TAVILY_SEARCH_DESCRIPTION = (
 # Get settings from TOML
 settings = ConfigLoader()
 
-
-# Structured output schema for summaries
-class SummaryResponse(BaseModel):
-    summary: str = Field(
-        description="Concise paragraph (<=200 words) summarizing the content"
-    )
-    key_excerpts: list[str] = Field(
-        default_factory=list,
-        description="1-5 short bullets capturing pivotal facts or quotes",
-    )
+# Get logger
+logger = get_logger(__name__)
 
 
-def _build_summary_model() -> BaseChatModel:
+def build_model(model_name: str) -> BaseChatModel:
     """Instantiate the summarization model based on configuration."""
-    return ChatDeepSeek(
-        model=settings.summary_model,
+    return ChatDeepSeekReasoningAware(
+        model=model_name,
         api_key=settings.config["llm"].get("api_key"),
         api_base=settings.config["llm"].get("base_url"),
         temperature=settings.config["llm"].get("temperature", 0.0),
@@ -49,7 +39,6 @@ def _build_summary_model() -> BaseChatModel:
     )
 
 
-# @tool(description=TAVILY_SEARCH_DESCRIPTION)
 async def tavily_search(
     queries: list[str],
     max_results: Annotated[int, InjectedToolArg] = settings.config["search"][
@@ -91,7 +80,7 @@ async def tavily_search(
                 unique_results[url] = {**result, "query": response["query"]}
 
     # Build model from configuration.
-    summarization_model = _build_summary_model()
+    summarization_model = build_model(settings.summary_model)
 
     async def noop():
         """No-op function for results without raw content."""
@@ -179,6 +168,8 @@ async def summarize_content(
         Dict containing `summary` (str) and `key_excerpts` (list[str]).
         Falls back to echoing the original content when summarization fails.
     """
+    from fathom.tools.utils import get_today_str
+
     if not content or len(content) < 500:
         return {"summary": content, "key_excerpts": []}
 
@@ -188,7 +179,7 @@ async def summarize_content(
 
     system_prompt_str = (
         f"{base_instruction}\n\n"
-        "Return a concise summary and 1-5 key excerpts as structured fields.\n"
+        "Return a concise summary and a excerpt as structured fields.\n"
         f"\n\nCurrent Date: {current_date}"
     )
 
@@ -201,39 +192,24 @@ async def summarize_content(
         [("system", system_prompt_str), ("human", "{content}")]
     )
 
-    structured_model = model.with_structured_output(SummaryResponse)
+    structured_model = model.with_structured_output(Summary)
     chain: Runnable = prompt | structured_model
 
     try:
         response = await asyncio.wait_for(
             chain.ainvoke({"content": content}), timeout=float(timeout)
         )
-        return cast(SummaryResponse, response).model_dump()
+        return cast(Summary, response).model_dump()
 
     except asyncio.TimeoutError:
         # Timeout during summarization - return original content
-        logging.warning(
+        logger.warning(
             "Summarization timed out after 60 seconds, returning original content"
         )
         return {"summary": content, "key_excerpts": []}
     except Exception as e:
         # Other errors during summarization - log and return original content
-        logging.warning(
+        logger.warning(
             f"Summarization failed with error: {str(e)}, returning original content"
         )
         return {"summary": content, "key_excerpts": []}
-
-
-##############
-# Misc Utils #
-##############
-
-
-def get_today_str() -> str:
-    """Get current date formatted for display in prompts and outputs.
-
-    Returns:
-        Human-readable date string in format like 'Mon Jan 15, 2024'
-    """
-    now = datetime.now()
-    return f"{now:%a} {now:%b} {now.day}, {now:%Y}"
