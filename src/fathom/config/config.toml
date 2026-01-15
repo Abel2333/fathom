@@ -13,12 +13,14 @@ debug_mode = true  # 是否打印详细的 Graph 状态转换日志
 # ------------------------------------------
 [llm]
 provider = "deepseek"  # 选项: openai, anthropic, ollama
-report_model_name = "deepseek-reasoner"  # 建议使用长窗口模型
+report_model_name = "kimi-k2-thinking"  # 建议使用长窗口模型
 summary_model_name = "deepseek-chat"  # 专用于摘要/压缩的模型
 clarify_model_name = "deepseek-chat"
-research_model_name = "deepseek-chat"
-temperature = 0.0  # 研究任务建议设为 0 以保证严谨性
+research_model_name = "kimi-k2-thinking"
+temperature = 1  # 研究任务建议设为 0 以保证严谨性
 timeout = 60  # 请求超时时间(秒)
+max_retries = 3  # API 请求失败时的最大重试次数
+# max_tokens = 128000  # 可选：限制生成的最大 token 数（不设置则使用模型默认值）
 # api_key 建议从环境变量读取，不要写在文件里
 
 # ------------------------------------------
@@ -71,3 +73,12 @@ level = "INFO"  # 选项: DEBUG, INFO, WARNING, ERROR, CRITICAL
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 log_to_file = true  # 是否记录到文件
 log_file = "logs/fathom.log"  # 日志文件路径
+
+# ------------------------------------------
+# 7. Langfuse (LLM Observability & Tracing)
+# ------------------------------------------
+[langfuse]
+enabled = true  # 是否启用 Langfuse 追踪
+# public_key 和 secret_key 建议从环境变量读取: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
+# host = "https://cloud.langfuse.com"  # 或者自托管的 Langfuse 实例
+# 如果不设置 host，将使用环境变量 LANGFUSE_HOST 或默认值

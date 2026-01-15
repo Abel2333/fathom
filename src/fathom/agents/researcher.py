@@ -92,7 +92,25 @@ async def researcher(state: ResearcherState) -> Command[Literal["researcher_tool
 
     messages = [SystemMessage(content=researcher_prompt)] + researcher_messages
     logger.debug(f"[{researcher_id}] Invoking researcher model with system prompt and messages")
-    response = await research_model.ainvoke(messages)
+
+    # Use streaming to avoid timeouts with reasoning models
+    # Accumulate chunks using LangChain's pattern
+    from langchain_core.messages import AIMessageChunk
+
+    response = None
+    async for chunk in research_model.astream(messages):
+        if response is None:
+            response = chunk
+        else:
+            # Use AIMessageChunk's __add__ to properly merge chunks
+            if isinstance(chunk, AIMessageChunk):
+                response = response + chunk
+            else:
+                response = chunk
+
+    # Fallback if no response received
+    if response is None:
+        response = AIMessage(content="")
 
     # Update state and proceed to tool execution
     return Command(

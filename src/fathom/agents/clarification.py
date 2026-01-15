@@ -64,9 +64,15 @@ async def clarify_with_user(
     prompt_content = clarify_with_user_instructions.format(
         messages=get_buffer_string(messages), date=get_today_str()
     )
+
+    # Use streaming to avoid timeouts
+    response_chunks = []
+    async for chunk in clarify_model.astream([HumanMessage(content=prompt_content)]):
+        response_chunks.append(chunk)
+
     response = cast(
         ClarifyWithUser,
-        await clarify_model.ainvoke([HumanMessage(content=prompt_content)]),
+        response_chunks[-1] if response_chunks else ClarifyWithUser(need_clarification=False, question="", verification="")
     )
     logger.debug(f"Model response received: need_clarification={response.need_clarification}")
 
@@ -129,9 +135,15 @@ async def write_research_brief(
     )
 
     logger.debug("Invoking research brief generation model...")
+
+    # Use streaming to avoid timeouts
+    response_chunks = []
+    async for chunk in research_model.astream([HumanMessage(content=prompt_content)]):
+        response_chunks.append(chunk)
+
     response = cast(
         ResearchQuestion,
-        await research_model.ainvoke([HumanMessage(content=prompt_content)]),
+        response_chunks[-1] if response_chunks else ResearchQuestion(research_brief="")
     )
 
     logger.info("✓ Research brief generated successfully")

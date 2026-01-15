@@ -3,10 +3,12 @@ import asyncio
 import sys
 
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 
 from fathom.agents.research import deep_researcher
 from fathom.config.logging import LoggerSetup, get_logger
 from fathom.models.schema import AgentInputState
+from fathom.tools.search import get_langfuse_handler
 
 
 def _print_status(message: str, prefix: str = "→"):
@@ -22,7 +24,9 @@ async def _run(prompt: str) -> str:
     logger.debug(f"User prompt: {prompt[:200]}{'...' if len(prompt) > 200 else ''}")
 
     _print_status("🔍 Starting Fathom Deep Research Agent", "")
-    _print_status(f"Research Query: {prompt[:100]}{'...' if len(prompt) > 100 else ''}", "📝")
+    _print_status(
+        f"Research Query: {prompt[:100]}{'...' if len(prompt) > 100 else ''}", "📝"
+    )
 
     initial_state: AgentInputState = {"messages": [HumanMessage(content=prompt)]}
 
@@ -30,8 +34,15 @@ async def _run(prompt: str) -> str:
     current_phase = None
     researcher_count = 0
 
+    # Get Langfuse handler for workflow-level tracing
+    langfuse_handler = get_langfuse_handler()
+    stream_config: RunnableConfig | None = None
+    if langfuse_handler:
+        stream_config = RunnableConfig(callbacks=[langfuse_handler])
+        logger.info("Langfuse tracing enabled for workflow")
+
     try:
-        async for event in deep_researcher.astream(initial_state):
+        async for event in deep_researcher.astream(initial_state, config=stream_config):
             # Track which node is executing
             for node_name, node_state in event.items():
                 if node_name == "clarify_with_user":
@@ -53,7 +64,9 @@ async def _run(prompt: str) -> str:
                     notes = node_state.get("notes", [])
                     if len(notes) > researcher_count:
                         researcher_count = len(notes)
-                        _print_status(f"Research findings collected: {researcher_count}", "📊")
+                        _print_status(
+                            f"Research findings collected: {researcher_count}", "📊"
+                        )
 
                 elif node_name == "final_report_generation":
                     if current_phase != "report":
@@ -68,6 +81,17 @@ async def _run(prompt: str) -> str:
         logger.exception("Workflow failed")
         _print_status("❌ Research workflow failed. Check logs for details.", "")
         raise
+    finally:
+        # Flush Langfuse traces if handler exists
+        if langfuse_handler:
+            try:
+                # Get the Langfuse client and flush traces
+                from fathom.tools.search import _langfuse_client
+                if _langfuse_client:
+                    _langfuse_client.flush()
+                    logger.debug("Langfuse traces flushed successfully")
+            except Exception as e:
+                logger.debug(f"Could not flush Langfuse traces: {e}")
 
     logger.info("Fathom session completed")
     print()  # Empty line after report

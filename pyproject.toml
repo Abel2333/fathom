@@ -14,6 +14,7 @@ dependencies = [
     "langchain>=1.2.3",
     "langchain-deepseek>=1.0.1",
     "langchain-openai>=1.1.7",
+    "langfuse>=3.12.0",
     "langgraph>=1.0.6",
     "logger>=1.4",
     "pytest>=9.0.2",
